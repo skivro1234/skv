@@ -101,6 +101,30 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await update.message.reply_text(f"Here are the commands you can use:\n{commands}")
 
+import random
+import re
+
+def parse_input(input_string):
+    # Split the input into parts
+    parts = input_string.split('|')
+    if len(parts) < 3:
+        raise ValueError("Input must be in the format: first|second|third|fourth")
+    first, second, third, fourth = parts
+    return first, second, third, fourth
+
+def generate_credit_card_number(prefix, length):
+    card_number = [int(d) for d in str(prefix)]
+    while len(card_number) < (length - 1):
+        card_number.append(random.randint(0, 9))
+    
+    partial_number = ''.join(map(str, card_number))
+    for check_digit in range(10):
+        if is_luhn_valid(int(partial_number + str(check_digit))):
+            card_number.append(check_digit)
+            break
+
+    return ''.join(map(str, card_number))
+
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
 
@@ -108,97 +132,47 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You need to register first using /register.")
         return
 
-    if len(context.args) == 1:
-        params = context.args[0].split('|')
-        if len(params) == 4:
-            bin_number = params[0][:6]
-            expiration_date = params[1]
-            year = params[2]
-            cvv = params[3]
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /gen <first|second|third|fourth> <amount>")
+        return
 
-            if len(expiration_date) != 2 or not expiration_date.isdigit():
-                await update.message.reply_text("Expiration month must be two digits.")
-                return
+    input_string = context.args[0]
+    amount = int(context.args[1])
+    
+    try:
+        first, second, third, fourth = parse_input(input_string)
+    except ValueError as e:
+        await update.message.reply_text(str(e))
+        return
 
-            if len(year) != 4 or not year.isdigit():
-                await update.message.reply_text("Expiration year must be four digits.")
-                return
+    card_length = 16
+    cards = []
 
-            if len(cvv) != 4 or not cvv.isdigit():  # Adjust CVV length check to 4 digits
-                await update.message.reply_text("CVV must be four digits.")
-                return
-
-            card_number = generate_credit_card_number(bin_number, 16)
-            card_info = f"{card_number}|{expiration_date}|{cvv}"
-
-            with open("gen.txt", "w") as file:
-                file.write(card_info + "\n")
-
-            bin_data = load_bin_data(BIN_FILE_PATH)
-            bin_info = bin_data.get(bin_number, {})
-            if not bin_info:
-                await update.message.reply_text(f"No information found for BIN {bin_number}")
-                return
-            
-            bin_details = (
-                f"BIN: {bin_info['BIN']}\n"
-                f"Brand: {bin_info['Brand']}\n"
-                f"Type: {bin_info['Type']}\n"
-                f"Category: {bin_info['Category']}\n"
-                f"Issuer: {bin_info['Issuer']}\n"
-                f"Country: {bin_info['CountryName']}"
-            )
-
-            with open("gen.txt", "rb") as file:
-                await update.message.reply_document(document=file, filename="gen.txt")
-            await update.message.reply_text(f"BIN Information:\n{bin_details}")
-
-        else:
-            await update.message.reply_text("Usage: /gen <bin>|<exp_month>|<exp_year>|<cvv>")
-            return
-
-    else:
-        if len(context.args) != 2:
-            await update.message.reply_text("Usage: /gen <bin> <amount>")
-            return
-
-        bin_number = context.args[0][:6]
-        try:
-            count = int(context.args[1])
-        except ValueError:
-            await update.message.reply_text("Amount should be a number.")
-            return
-
-        card_length = 16
-        fixed_cvv = '0000'  # Fixed CVV
-        card_numbers = generate_test_cards(bin_number, card_length, count, fixed_cvv=fixed_cvv)
+    for _ in range(amount):
+        # Generate the rest of the card number
+        prefix = first
+        card_number = generate_credit_card_number(prefix, card_length)
         
-        if count < 20:
-            for card in card_numbers:
-                await update.message.reply_text(card)
-        else:
-            with open("gen.txt", "w") as file:
-                for card in card_numbers:
-                    file.write(card + "\n")
-            
-            bin_data = load_bin_data(BIN_FILE_PATH)
-            bin_info = bin_data.get(bin_number, {})
-            if not bin_info:
-                await update.message.reply_text(f"No information found for BIN {bin_number}")
-                return
-            
-            bin_details = (
-                f"BIN: {bin_info['BIN']}\n"
-                f"Brand: {bin_info['Brand']}\n"
-                f"Type: {bin_info['Type']}\n"
-                f"Category: {bin_info['Category']}\n"
-                f"Issuer: {bin_info['Issuer']}\n"
-                f"Country: {bin_info['CountryName']}"
-            )
+        # Randomize expiration month if 'xx' is provided
+        expiration_month = str(random.randint(1, 12)).zfill(2) if second == 'xx' else second
+        # Randomize expiration year if 'xx' is provided
+        expiration_year = str(random.randint(25, 32)).zfill(2) if third == 'xx' else third
+        # Use provided CVV or randomize it
+        cvv = fourth if fourth != 'xxxx' else str(random.randint(1000, 9999))
 
-            with open("gen.txt", "rb") as file:
-                await update.message.reply_document(document=file, filename="gen.txt")
-            await update.message.reply_text(f"BIN Information:\n{bin_details}")
+        card_info = f"{card_number}|{expiration_month}|{expiration_year}|{cvv}"
+        cards.append(card_info)
+
+    if amount < 20:
+        for card in cards:
+            await update.message.reply_text(card)
+    else:
+        with open("gen.txt", "w") as file:
+            for card in cards:
+                file.write(card + "\n")
+
+        with open("gen.txt", "rb") as file:
+            await update.message.reply_document(document=file, filename="gen.txt")
 
 async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE, prefixes) -> None:
     user_id = update.effective_user.id
