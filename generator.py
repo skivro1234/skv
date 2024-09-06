@@ -229,6 +229,39 @@ async def generate_from_country(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_document(document=file, filename="gen.txt")
     await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
+async def lookup_bin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+
+    if not is_registered(user_id):
+        await update.message.reply_text("You need to register first using /register.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /bn <bin>")
+        return
+
+    bin_number = context.args[0][:6]  # Ensure the BIN is 6 digits
+
+    bin_data = load_bin_data(BIN_FILE_PATH)
+    bin_info = bin_data.get(bin_number, {})
+
+    if not bin_info:
+        await update.message.reply_text(f"No information found for BIN {bin_number}")
+        return
+
+    bin_details = (
+        f"BIN: {bin_info['BIN']}\n"
+        f"Brand: {bin_info['Brand']}\n"
+        f"Type: {bin_info['Type']}\n"
+        f"Category: {bin_info['Category']}\n"
+        f"Issuer: {bin_info['Issuer']}\n"
+        f"Country: {bin_info['CountryName']}\n"
+        f"Issuer Phone: {bin_info.get('IssuerPhone', 'N/A')}\n"
+        f"Issuer URL: {bin_info.get('IssuerUrl', 'N/A')}"
+    )
+
+    await update.message.reply_text(f"BIN Information:\n{bin_details}")
+
 async def list_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     commands = (
         "/start - Welcome message\n"
@@ -255,7 +288,7 @@ def main() -> None:
     application.add_handler(CommandHandler('gm', lambda update, context: generate_from_random_bins(update, context, ['51', '52', '53', '54', '55'])))
     application.add_handler(CommandHandler('ga', lambda update, context: generate_from_random_bins(update, context, ['34', '37'])))
     application.add_handler(CommandHandler('gc', generate_from_country))
-    application.add_handler(CommandHandler('bn', lambda update, context: update.message.reply_text("BIN lookup is not implemented in this snippet.")))
+    application.add_handler(CommandHandler('bn', lookup_bin))  # Added BIN lookup handler
     application.add_handler(CommandHandler('cmds', list_commands))
 
     application.run_polling()
