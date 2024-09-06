@@ -305,9 +305,9 @@ async def main() -> None:
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
-    application.add_handler(CommandHandler("gen", generate, pass_args=True))
-    application.add_handler(CommandHandler("gg", generate_from_random_bins, pass_args=True))
-    application.add_handler(CommandHandler("gc", generate_from_country, pass_args=True))
+    application.add_handler(CommandHandler("gen", generate))
+    application.add_handler(CommandHandler("gg", generate_from_random_bins))
+    application.add_handler(CommandHandler("gc", generate_from_country))
     application.add_handler(CommandHandler("cmds", list_commands))
 
     await application.run_polling()
