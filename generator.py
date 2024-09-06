@@ -329,7 +329,30 @@ async def bin_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     
     await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
-async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if is_registered(user_id):
+        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.")
+        return
+
+    keyboard = [[InlineKeyboardButton("Register", callback_data='register')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    with open(VIDEO_FILE_PATH, 'rb') as video:
+        await update.message.reply_video(video, caption="Welcome! Please register using the button below.", reply_markup=reply_markup)
+
+async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Use CallbackQuery for registration handling
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    if is_registered(user_id):
+        await query.message.reply_text("You are already registered.")
+        return
+
+    with open(USERS_FILE_PATH, "a") as file:
+        file.write(f"{user_id}\n")
+    
     commands = (
         "/start - Welcome message\n"
         "/register - Register to use the bot\n"
@@ -342,10 +365,18 @@ async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/bn <bin> - Lookup BIN information\n"
         "/cmds - List available commands"
     )
-    await update.message.reply_text(f"Available commands:\n{commands}")
+    
+    await query.message.reply_text("You have been registered successfully!")
+    await query.message.reply_text(f"Available commands:\n{commands}")
 
+async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query.data == 'register':
+        await register(update, context)
+
+# Add the CallbackQueryHandler for handling button presses
 def main() -> None:
-    application = Application.builder().token('7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM').build()
+    application = Application.builder().token('YOUR_BOT_TOKEN').build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
@@ -356,7 +387,8 @@ def main() -> None:
     application.add_handler(CommandHandler("ga", lambda u, c: generate_from_random_bins(u, c, ['3'])))  # American Express
     application.add_handler(CommandHandler("gc", generate_from_country))
     application.add_handler(CommandHandler("bn", bin_lookup))
-    application.add_handler(CommandHandler("cmds", cmds))
+    
+    # Add the handler for callback queries
     application.add_handler(CallbackQueryHandler(handle_button))
 
     application.run_polling()
