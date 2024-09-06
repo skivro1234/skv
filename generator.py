@@ -1,9 +1,10 @@
 import csv
 import random
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
+# File paths
 BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
 VIDEO_FILE_PATH = 'ice.mp4'  # Replace with the actual path to your welcome video
 USERS_FILE_PATH = 'bot_users.txt'
@@ -17,7 +18,7 @@ def load_bin_data(file_path):
             bin_data[row['BIN']] = row
     return bin_data
 
-# Generate credit card number, expiration date, CVV, etc.
+# Generate credit card details
 def luhn_checksum(card_number):
     def digits_of(n):
         return [int(d) for d in str(n)]
@@ -79,11 +80,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     with open(VIDEO_FILE_PATH, 'rb') as video:
         await update.message.reply_video(video, caption="Welcome! Please register using the button below.", reply_markup=reply_markup)
-    
+
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
+    query = update.callback_query
+    if not query:
+        await update.message.reply_text("Error: Callback query is missing.")
+        return
+
+    user_id = query.from_user.id
+
     if is_registered(user_id):
-        await update.message.reply_text("You are already registered.")
+        await query.message.reply_text("You are already registered.")
         return
 
     with open(USERS_FILE_PATH, "a") as file:
@@ -102,15 +109,17 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/cmds - List available commands"
     )
     
-    await update.message.reply_text("You have been registered successfully!")
-    await update.message.reply_text(f"Available commands:\n{commands}")
+    await query.message.reply_text("You have been registered successfully!")
+    await query.message.reply_text(f"Available commands:\n{commands}")
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    user_id = query.from_user.id
+    if not query:
+        await update.message.reply_text("Error: Callback query is missing.")
+        return
 
     if query.data == 'register':
-        await register(query.message, context)
+        await register(update, context)
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -234,10 +243,6 @@ async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAUL
             file.write(card + "\n")
 
     bin_info = bin_data.get(bin_number, {})
-    if not bin_info:
-        await update.message.reply_text(f"No information found for BIN {bin_number}")
-        return
-
     bin_details = (
         f"BIN: {bin_info['BIN']}\n"
         f"Brand: {bin_info['Brand']}\n"
@@ -262,7 +267,7 @@ async def generate_from_country(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Usage: /gc <country_code> <amount>")
         return
 
-    country_code = context.args[0].upper()
+    country_code = context.args[0]
     try:
         count = int(context.args[1])
     except ValueError:
@@ -270,28 +275,21 @@ async def generate_from_country(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     bin_data = load_bin_data(BIN_FILE_PATH)
-    bin_list = [bin_number for bin_number, details in bin_data.items() if details['isoCode2'] == country_code]
-
+    bin_list = [bin_number for bin_number, info in bin_data.items() if info['CountryCode'] == country_code]
+    
     if not bin_list:
         await update.message.reply_text(f"No BINs found for country code {country_code}.")
         return
 
+    bin_number = random.choice(bin_list)
     card_length = 16
-    card_numbers = []
-    while len(card_numbers) < count:
-        bin_number = random.choice(bin_list)
-        card_numbers += generate_test_cards(bin_number, card_length, count - len(card_numbers))
+    card_numbers = generate_test_cards(bin_number, card_length, count)
 
     with open("gen.txt", "w") as file:
         for card in card_numbers:
             file.write(card + "\n")
 
-    bin_number = random.choice(bin_list)
     bin_info = bin_data.get(bin_number, {})
-    if not bin_info:
-        await update.message.reply_text(f"No information found for BIN {bin_number}")
-        return
-
     bin_details = (
         f"BIN: {bin_info['BIN']}\n"
         f"Brand: {bin_info['Brand']}\n"
@@ -306,11 +304,17 @@ async def generate_from_country(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
 async def bin_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+
+    if not is_registered(user_id):
+        await update.message.reply_text("You need to register first using /register.")
+        return
+
     if len(context.args) != 1:
         await update.message.reply_text("Usage: /bn <bin>")
         return
 
-    bin_number = context.args[0][:6]
+    bin_number = context.args[0]
     bin_data = load_bin_data(BIN_FILE_PATH)
     bin_info = bin_data.get(bin_number, {})
 
@@ -326,33 +330,10 @@ async def bin_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"Issuer: {bin_info['Issuer']}\n"
         f"Country: {bin_info['CountryName']}"
     )
-    
+
     await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    if is_registered(user_id):
-        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.")
-        return
-
-    keyboard = [[InlineKeyboardButton("Register", callback_data='register')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    with open(VIDEO_FILE_PATH, 'rb') as video:
-        await update.message.reply_video(video, caption="Welcome! Please register using the button below.", reply_markup=reply_markup)
-
-async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Use CallbackQuery for registration handling
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    if is_registered(user_id):
-        await query.message.reply_text("You are already registered.")
-        return
-
-    with open(USERS_FILE_PATH, "a") as file:
-        file.write(f"{user_id}\n")
-    
+async def list_commands(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     commands = (
         "/start - Welcome message\n"
         "/register - Register to use the bot\n"
@@ -365,65 +346,12 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/bn <bin> - Lookup BIN information\n"
         "/cmds - List available commands"
     )
-    
-    await query.message.reply_text("You have been registered successfully!")
-    await query.message.reply_text(f"Available commands:\n{commands}")
-
-aasync def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    if is_registered(user_id):
-        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.")
-        return
-
-    keyboard = [[InlineKeyboardButton("Register", callback_data='register')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    with open(VIDEO_FILE_PATH, 'rb') as video:
-        await update.message.reply_video(video, caption="Welcome! Please register using the button below.", reply_markup=reply_markup)
-
-async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    if not query:
-        await update.message.reply_text("Error: Callback query is missing.")
-        return
-
-    user_id = query.from_user.id
-
-    if is_registered(user_id):
-        await query.message.reply_text("You are already registered.")
-        return
-
-    with open(USERS_FILE_PATH, "a") as file:
-        file.write(f"{user_id}\n")
-    
-    commands = (
-        "/start - Welcome message\n"
-        "/register - Register to use the bot\n"
-        "/gen <bin> <amount> - Generate credit card details\n"
-        "/gg <amount> - Generate random credit cards\n"
-        "/gv <amount> - Generate Visa credit cards\n"
-        "/gm <amount> - Generate Mastercard credit cards\n"
-        "/ga <amount> - Generate American Express credit cards\n"
-        "/gc <country_code> <amount> - Generate credit cards from a specific country\n"
-        "/bn <bin> - Lookup BIN information\n"
-        "/cmds - List available commands"
-    )
-    
-    await query.message.reply_text("You have been registered successfully!")
-    await query.message.reply_text(f"Available commands:\n{commands}")
-
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    if not query:
-        await update.message.reply_text("Error: Callback query is missing.")
-        return
-
-    if query.data == 'register':
-        await register(update, context)
+    await update.message.reply_text(f"Available commands:\n{commands}")
 
 def main() -> None:
     application = Application.builder().token('7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM').build()
 
+    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
     application.add_handler(CommandHandler("gen", generate))
@@ -433,11 +361,12 @@ def main() -> None:
     application.add_handler(CommandHandler("ga", lambda u, c: generate_from_random_bins(u, c, ['3'])))  # American Express
     application.add_handler(CommandHandler("gc", generate_from_country))
     application.add_handler(CommandHandler("bn", bin_lookup))
-    application.add_handler(CommandHandler("cmds", lambda u, c: u.message.reply_text("Available commands:\n/cmds")))
+    application.add_handler(CommandHandler("cmds", list_commands))
 
-    # Add the handler for callback queries
+    # Callback query handler
     application.add_handler(CallbackQueryHandler(handle_button))
 
+    # Run the bot
     application.run_polling()
 
 if __name__ == "__main__":
