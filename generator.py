@@ -422,7 +422,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await register(update, context)
 
 def main() -> None:
-    application = Application.builder().token('YOUR_BOT_TOKEN').build()
+    application = Application.builder().token('7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM').build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
