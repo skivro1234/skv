@@ -345,7 +345,7 @@ async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Available commands:\n{commands}")
 
 def main() -> None:
-    application = Application.builder().token('7334774517:AAFneU67ZvYc8yyID0NPjBiYOMIV_X8GHv0').build()
+    application = Application.builder().token('7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM').build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
