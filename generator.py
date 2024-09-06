@@ -1,15 +1,13 @@
 import csv
 import random
 import os
-from telegram import Update, InputMediaVideo
+from telegram import Update, InputMediaVideo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
 VIDEO_FILE_PATH = 'ice.mp4'  # Replace with the actual path to your welcome video
 USERS_FILE_PATH = 'bot_users.txt'
 
-# Load CSV data
 def load_bin_data(file_path):
     bin_data = {}
     with open(file_path, mode='r', encoding='utf-8') as file:
@@ -18,7 +16,6 @@ def load_bin_data(file_path):
             bin_data[row['BIN']] = row
     return bin_data
 
-# Generate credit card number, expiration date, CVV, etc.
 def luhn_checksum(card_number):
     def digits_of(n):
         return [int(d) for d in str(n)]
@@ -89,11 +86,13 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await register(query.message, context)
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = None
     if hasattr(update, 'effective_user') and update.effective_user:
         user_id = update.effective_user.id
     elif hasattr(update, 'from_user') and update.from_user:
         user_id = update.from_user.id
-    else:
+    
+    if user_id is None:
         await update.message.reply_text("Could not extract user ID. Please try again.")
         return
     
@@ -113,60 +112,16 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You need to register first using /register.")
         return
 
-    if len(context.args) == 1:
-        params = context.args[0].split('|')
-        if len(params) == 3:
-            bin_number = params[0][:6]
-            expiration_date = params[1]
-            cvv = params[2]
-
-            if len(expiration_date) != 2 or not expiration_date.isdigit():
-                await update.message.reply_text("Expiration month must be two digits.")
-                return
-
-            if len(cvv) != 3 or not cvv.isdigit():
-                await update.message.reply_text("CVV must be three digits.")
-                return
-
-            card_number = generate_credit_card_number(bin_number, 16)
-            card_info = f"{card_number}|{expiration_date}|{cvv}"
-
-            with open("gen.txt", "w") as file:
-                file.write(card_info + "\n")
-
-            bin_data = load_bin_data(BIN_FILE_PATH)
-            bin_info = bin_data.get(bin_number, {})
-            if not bin_info:
-                await update.message.reply_text(f"No information found for BIN {bin_number}")
-                return
-            
-            bin_details = (
-                f"BIN: {bin_info['BIN']}\n"
-                f"Brand: {bin_info['Brand']}\n"
-                f"Type: {bin_info['Type']}\n"
-                f"Category: {bin_info['Category']}\n"
-                f"Issuer: {bin_info['Issuer']}\n"
-                f"Country: {bin_info['CountryName']}"
-            )
-
-            with open("gen.txt", "rb") as file:
-                await update.message.reply_document(document=file, filename="gen.txt")
-            await update.message.reply_text(f"BIN Information:\n{bin_details}")
-
-        else:
-            await update.message.reply_text("Usage: /gen <bin>|<exp_month>|<exp_year>|<cvv>")
-            return
-
-    else:
-        if len(context.args) != 2:
-            await update.message.reply_text("Usage: /gen <bin> <amount>")
-            return
-
+    if len(context.args) == 2:
         bin_number = context.args[0][:6]
         try:
             count = int(context.args[1])
         except ValueError:
             await update.message.reply_text("Amount should be a number.")
+            return
+
+        if len(bin_number) != 6:
+            await update.message.reply_text("BIN should be 6 digits.")
             return
 
         card_length = 16
@@ -195,7 +150,11 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_document(document=file, filename="gen.txt")
         await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
-async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE, prefixes) -> None:
+    else:
+        await update.message.reply_text("Usage: /gen <bin> <amount>")
+        return
+
+async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
 
     if not is_registered(user_id):
@@ -213,7 +172,7 @@ async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAUL
         return
 
     bin_data = load_bin_data(BIN_FILE_PATH)
-    bin_list = [bin_number for bin_number in bin_data.keys() if any(bin_number.startswith(prefix) for prefix in prefixes)]
+    bin_list = [bin_number for bin_number in bin_data.keys() if any(bin_number.startswith(prefix) for prefix in ['41', '42'])]
     
     if not bin_list:
         await update.message.reply_text("No BINs found for the specified prefixes.")
@@ -310,7 +269,7 @@ def main() -> None:
     application.add_handler(CommandHandler('register', register))
     application.add_handler(CallbackQueryHandler(handle_button))
     application.add_handler(CommandHandler('gen', generate))
-    application.add_handler(CommandHandler('gg', lambda update, context: generate_from_random_bins(update, context, ['41', '42'])))
+    application.add_handler(CommandHandler('gg', generate_from_random_bins))
     application.add_handler(CommandHandler('gv', lambda update, context: generate_from_random_bins(update, context, ['4'])))
     application.add_handler(CommandHandler('gm', lambda update, context: generate_from_random_bins(update, context, ['51', '52', '53', '54', '55'])))
     application.add_handler(CommandHandler('ga', lambda update, context: generate_from_random_bins(update, context, ['34', '37'])))
