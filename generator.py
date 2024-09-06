@@ -1,8 +1,8 @@
 import csv
 import random
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
 VIDEO_FILE_PATH = 'ice.mp4'  # Replace with the actual path to your welcome video
@@ -69,43 +69,23 @@ def is_registered(user_id):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if is_registered(user_id):
-        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.")
+        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.\n\nAvailable commands:\n/register - Register to use the bot\n/gen <bin> <amount> - Generate credit card details\n/gg <amount> - Generate random credit cards\n/gv <amount> - Generate Visa credit cards\n/gm <amount> - Generate Mastercard credit cards\n/ga <amount> - Generate American Express credit cards\n/gc <country_code> <amount> - Generate credit cards from a specific country\n/bn <bin> - Lookup BIN information\n/cmds - List available commands")
         return
 
-    keyboard = [[InlineKeyboardButton("Register", callback_data='register')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     with open(VIDEO_FILE_PATH, 'rb') as video:
-        await update.message.reply_video(video, caption="Welcome! Please register to use the bot.", reply_markup=reply_markup)
+        await update.message.reply_video(video, caption="Welcome! Please register to use the bot.")
 
-async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    if query:
-        user_id = query.from_user.id
-        if not is_registered(user_id):
-            await register(query.message, context)
-        else:
-            await query.message.reply_text("You are already registered.")
+async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
 
-async def register(message, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = None
-    if isinstance(message, Update):
-        user_id = message.effective_user.id if message.effective_user else None
-    elif isinstance(message, CallbackQuery):
-        user_id = message.from_user.id
-
-    if user_id is None:
-        await message.reply_text("Could not extract user ID. Please try again.")
-        return
-    
     if is_registered(user_id):
-        await message.reply_text("You are already registered.")
+        await update.message.reply_text("You are already registered.")
         return
 
     with open(USERS_FILE_PATH, "a") as file:
         file.write(f"{user_id}\n")
-    await message.reply_text("You have been registered successfully!")
-    await list_commands(message, context)
+    await update.message.reply_text("You have been registered successfully!")
+    await list_commands(update, context)
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -269,7 +249,6 @@ def main() -> None:
 
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('register', register))
-    application.add_handler(CallbackQueryHandler(handle_button))
     application.add_handler(CommandHandler('gen', generate))
     application.add_handler(CommandHandler('gg', generate_from_random_bins))
     application.add_handler(CommandHandler('gv', lambda update, context: generate_from_random_bins(update, context, ['4'])))
