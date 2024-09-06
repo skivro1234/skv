@@ -236,7 +236,7 @@ async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAUL
                 file.write(card + "\n")
 
         bin_info = bin_data.get(bin_number, {})
-                if not bin_info:
+        if not bin_info:
             await update.message.reply_text(f"No information found for BIN {bin_number}")
             return
         
