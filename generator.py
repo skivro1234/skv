@@ -292,7 +292,7 @@ async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Main function to start the bot
 def main():
-    application = Application.builder().token("YOUR_TOKEN").build()
+    application = Application.builder().token("7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM").build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
