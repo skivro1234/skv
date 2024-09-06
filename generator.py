@@ -252,7 +252,7 @@ async def bin_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(f"BIN Information:\n{bin_details_text}")
 
 # Add command handler for /bn
-application = Application.builder().token("YOUR TELEGRAM BOT TOKEN").build()
+application = Application.builder().token("7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM").build()
 application.add_handler(CommandHandler("bn", bin_lookup))
 
 # Start the bot
