@@ -110,7 +110,7 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You need to register first using /register.")
         return
 
-    if len(context.args) < 1 or len(context.args) > 2:
+    if len(context.args) < 1:
         await update.message.reply_text("Usage: /gen <first|second|third|fourth> [<amount>]")
         return
 
@@ -121,7 +121,69 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     first, second, third = input_data[:3]
     fourth = input_data[3] if len(input_data) == 4 else 'xx'
-    count = int(context.args[1]) if len(context.args) == 2 else 10000
+
+    try:
+        count = int(context.args[1]) if len(context.args) > 1 else 10000
+    except ValueError:
+        await update.message.reply_text("Amount should be a number.")
+        return
+
+    def generate_card_number(prefix, length):
+        card_number = [int(d) for d in str(prefix)]
+        while len(card_number) < (length - 1):
+            card_number.append(random.randint(0, 9))
+
+        partial_number = ''.join(map(str, card_number))
+        for check_digit in range(10):
+            if is_luhn_valid(int(partial_number + str(check_digit))):
+                card_number.append(check_digit)
+                break
+        return ''.join(map(str, card_number))
+
+    def generate_expiration_date(exp_month, exp_year):
+        month = exp_month if exp_month != 'xx' else str(random.randint(1, 12)).zfill(2)
+        year = exp_year if exp_year != 'xx' else str(random.randint(25, 32))
+        return f"{month}|{year}"
+
+    def generate_cvv(cvv):
+        return cvv if cvv != 'xx' else str(random.randint(100, 999)).zfill(3)
+
+    card_length = 16
+    cards = []
+
+    for _ in range(count):
+        card_number = generate_card_number(first, card_length)
+        expiration_date = generate_expiration_date(second, third)
+        cvv = generate_cvv(fourth)
+        cards.append(f"{card_number}|{expiration_date}|{cvv}")
+
+    if count < 20:
+        for card in cards:
+            await update.message.reply_text(card)
+    else:
+        with open("gen.txt", "w") as file:
+            for card in cards:
+                file.write(card + "\n")
+
+        bin_info = load_bin_data(BIN_FILE_PATH)
+        bin_details = bin_info.get(first[:6], {})
+        if not bin_details:
+            await update.message.reply_text(f"No information found for BIN {first[:6]}")
+            return
+        
+        bin_details_text = (
+            f"BIN: {bin_details['BIN']}\n"
+            f"Brand: {bin_details['Brand']}\n"
+            f"Type: {bin_details['Type']}\n"
+            f"Category: {bin_details['Category']}\n"
+            f"Issuer: {bin_details['Issuer']}\n"
+            f"Country: {bin_details['CountryName']}"
+        )
+
+        with open("gen.txt", "rb") as file:
+            await update.message.reply_document(document=file, filename="gen.txt")
+        await update.message.reply_text(f"BIN Information:\n{bin_details_text}")
+
 
     def generate_card_number(prefix, length):
         card_number = [int(d) for d in str(prefix)]
