@@ -4,9 +4,9 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import os
 
-BIN_FILE_PATH = 'C:\\Users\\bahri\\Downloads\\ccgen\\bin-list-data.csv'  # Replace with the actual path to your CSV file
-VIDEO_FILE_PATH = 'C:\\Users\\bahri\\Downloads\\ccgen\\ice.mp4'  # Replace with the actual path to your welcome video
-USERS_FILE_PATH = 'C:\\Users\\bahri\\Downloads\\ccgen\\bot_users.txt'
+BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
+VIDEO_FILE_PATH = 'ice.mp4'  # Replace with the actual path to your welcome video
+USERS_FILE_PATH = 'bot_users.txt'
 
 # Load CSV data
 def load_bin_data(file_path):
