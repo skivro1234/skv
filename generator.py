@@ -7,7 +7,7 @@ import os
 BIN_FILE_PATH = 'bin-list-data.csv'
 VIDEO_FILE_PATH = 'ice.mp4'
 USERS_FILE_PATH = 'bot_users.txt'
-CHANNEL_ID = '@your_channel_username'  # Replace with your channel username or ID
+CHANNEL_ID = '@skivro_channel'  # Replace with your channel username or ID
 
 # Load CSV data
 def load_bin_data(file_path):
@@ -344,7 +344,7 @@ async def bin_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text(f"BIN Information:\n{bin_details}", parse_mode="HTML")
 
 def main() -> None:
-    application = Application.builder().token('YOUR_TELEGRAM_BOT_TOKEN').build()
+    application = Application.builder().token('7334774517:AAFneU67ZvYc8yyID0NPjBiYOMIV_X8GHv0').build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
