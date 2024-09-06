@@ -89,7 +89,14 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await register(query.message, context)
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if hasattr(update, 'effective_user') and update.effective_user:
+        user_id = update.effective_user.id
+    elif hasattr(update, 'from_user') and update.from_user:
+        user_id = update.from_user.id
+    else:
+        await update.message.reply_text("Could not extract user ID. Please try again.")
+        return
+    
     if is_registered(user_id):
         await update.message.reply_text("You are already registered.")
         return
