@@ -132,38 +132,53 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("You need to register first using /register.")
         return
 
-    if len(context.args) != 1:
+    if len(context.args) != 2:
         await update.message.reply_text("Usage: /gen <first|second|third|fourth> <amount>")
         return
 
-    input_string = context.args[0]
-    amount = int(context.args[1])
-    
-    try:
-        first, second, third, fourth = parse_input(input_string)
-    except ValueError as e:
-        await update.message.reply_text(str(e))
+    input_data = context.args[0].split('|')
+    if len(input_data) < 3 or len(input_data) > 4:
+        await update.message.reply_text("Usage: /gen <first|second|third|fourth> <amount>")
         return
+
+    first, second, third = input_data[:3]
+    fourth = input_data[3] if len(input_data) == 4 else 'xx'
+    try:
+        count = int(context.args[1])
+    except ValueError:
+        await update.message.reply_text("Amount should be a number.")
+        return
+
+    def generate_card_number(prefix, length):
+        card_number = [int(d) for d in str(prefix)]
+        while len(card_number) < (length - 1):
+            card_number.append(random.randint(0, 9))
+        
+        partial_number = ''.join(map(str, card_number))
+        for check_digit in range(10):
+            if is_luhn_valid(int(partial_number + str(check_digit))):
+                card_number.append(check_digit)
+                break
+        return ''.join(map(str, card_number))
+
+    def generate_expiration_date(exp_month, exp_year):
+        month = exp_month if exp_month != 'xx' else str(random.randint(1, 12)).zfill(2)
+        year = exp_year if exp_year != 'xx' else str(random.randint(25, 32))
+        return f"{month}|{year}"
+
+    def generate_cvv(cvv):
+        return cvv if cvv != 'xx' else str(random.randint(100, 999)).zfill(3)
 
     card_length = 16
     cards = []
 
-    for _ in range(amount):
-        # Generate the rest of the card number
-        prefix = first
-        card_number = generate_credit_card_number(prefix, card_length)
-        
-        # Randomize expiration month if 'xx' is provided
-        expiration_month = str(random.randint(1, 12)).zfill(2) if second == 'xx' else second
-        # Randomize expiration year if 'xx' is provided
-        expiration_year = str(random.randint(25, 32)).zfill(2) if third == 'xx' else third
-        # Use provided CVV or randomize it
-        cvv = fourth if fourth != 'xxxx' else str(random.randint(1000, 9999))
+    for _ in range(count):
+        card_number = generate_card_number(first, card_length)
+        expiration_date = generate_expiration_date(second, third)
+        cvv = generate_cvv(fourth)
+        cards.append(f"{card_number}|{expiration_date}|{cvv}")
 
-        card_info = f"{card_number}|{expiration_month}|{expiration_year}|{cvv}"
-        cards.append(card_info)
-
-    if amount < 20:
+    if count < 20:
         for card in cards:
             await update.message.reply_text(card)
     else:
@@ -171,8 +186,24 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             for card in cards:
                 file.write(card + "\n")
 
+        bin_data = load_bin_data(BIN_FILE_PATH)
+        bin_info = bin_data.get(first[:6], {})
+        if not bin_info:
+            await update.message.reply_text(f"No information found for BIN {first[:6]}")
+            return
+        
+        bin_details = (
+            f"BIN: {bin_info['BIN']}\n"
+            f"Brand: {bin_info['Brand']}\n"
+            f"Type: {bin_info['Type']}\n"
+            f"Category: {bin_info['Category']}\n"
+            f"Issuer: {bin_info['Issuer']}\n"
+            f"Country: {bin_info['CountryName']}"
+        )
+
         with open("gen.txt", "rb") as file:
             await update.message.reply_document(document=file, filename="gen.txt")
+        await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
 async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE, prefixes) -> None:
     user_id = update.effective_user.id
