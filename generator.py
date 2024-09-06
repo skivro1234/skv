@@ -1,7 +1,7 @@
 import csv
 import random
 import os
-from telegram import Update, InputMediaVideo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InputMediaVideo, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
@@ -77,7 +77,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     with open(VIDEO_FILE_PATH, 'rb') as video:
         await update.message.reply_video(video, caption="Welcome! Please register to use the bot.", reply_markup=reply_markup)
-    
+
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query:
@@ -85,13 +85,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def register(message, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = None
-    if isinstance(message, Update):
-        if message.effective_user:
-            user_id = message.effective_user.id
-    elif isinstance(message, CallbackQuery):
-        if message.from_user:
-            user_id = message.from_user.id
-    
+    if isinstance(message, Update) and message.effective_user:
+        user_id = message.effective_user.id
+    elif isinstance(message, CallbackQuery) and message.from_user:
+        user_id = message.from_user.id
+
     if user_id is None:
         await message.reply_text("Could not extract user ID. Please try again.")
         return
