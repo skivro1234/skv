@@ -1,8 +1,8 @@
 import csv
 import random
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 BIN_FILE_PATH = 'bin-list-data.csv'  # Replace with the actual path to your CSV file
 VIDEO_FILE_PATH = 'ice.mp4'  # Replace with the actual path to your welcome video
@@ -69,15 +69,11 @@ def is_registered(user_id):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if is_registered(user_id):
-        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.\n\nAvailable commands:\n/register - Register to use the bot\n/gen <bin> <amount> - Generate credit card details\n/gg <amount> - Generate random credit cards\n/gv <amount> - Generate Visa credit cards\n/gm <amount> - Generate Mastercard credit cards\n/ga <amount> - Generate American Express credit cards\n/gc <amount> - Generate credit cards from a specific country\n/bn <bin> - Lookup BIN information\n/cmds - List available commands")
+        await update.message.reply_text("Welcome back! Use /gen <bin> <amount> to generate credit card details.\n\nAvailable commands:\n/register - Register to use the bot\n/gen <bin> <amount> - Generate credit card details\n/gg <amount> - Generate random credit cards\n/gv <amount> - Generate Visa credit cards\n/gm <amount> - Generate Mastercard credit cards\n/ga <amount> - Generate American Express credit cards\n/gc <country_code> <amount> - Generate credit cards from a specific country\n/bn <bin> - Lookup BIN information\n/cmds - List available commands")
         return
 
-    # Create an inline keyboard with the register button
-    keyboard = [[InlineKeyboardButton("Register", callback_data='register')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
     with open(VIDEO_FILE_PATH, 'rb') as video:
-        await update.message.reply_video(video, caption="Welcome! Please register to use the bot.", reply_markup=reply_markup)
+        await update.message.reply_video(video, caption="𝘸𝘦𝘭𝘤𝘰𝘮𝘦 please /register to use the bot")
 
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -90,13 +86,6 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         file.write(f"{user_id}\n")
     await update.message.reply_text("You have been registered successfully!")
     await list_commands(update, context)
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == 'register':
-        await register(query.message, context)
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -268,7 +257,6 @@ def main() -> None:
     application.add_handler(CommandHandler('gc', generate_from_country))
     application.add_handler(CommandHandler('bn', lambda update, context: update.message.reply_text("BIN lookup is not implemented in this snippet.")))
     application.add_handler(CommandHandler('cmds', list_commands))
-    application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling()
 
