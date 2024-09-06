@@ -386,7 +386,7 @@ async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Application setup
 def main():
-    application = Application.builder().token("YOUR_BOT_TOKEN_HERE").build()
+    application = Application.builder().token("7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM").build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
