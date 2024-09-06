@@ -124,8 +124,8 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 await update.message.reply_text("Expiration year must be four digits.")
                 return
 
-            if len(cvv) != 3 or not cvv.isdigit():
-                await update.message.reply_text("CVV must be three digits.")
+            if len(cvv) != 4 or not cvv.isdigit():  # Adjust CVV length check to 4 digits
+                await update.message.reply_text("CVV must be four digits.")
                 return
 
             card_number = generate_credit_card_number(bin_number, 16)
@@ -170,7 +170,8 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
 
         card_length = 16
-        card_numbers = generate_test_cards(bin_number, card_length, count)
+        fixed_cvv = '0000'  # Fixed CVV
+        card_numbers = generate_test_cards(bin_number, card_length, count, fixed_cvv=fixed_cvv)
         
         if count < 20:
             for card in card_numbers:
