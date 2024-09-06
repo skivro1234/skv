@@ -90,7 +90,7 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     commands = (
         "/start - Start the bot\n"
         "/register - Register to use the bot\n"
-        "/gen <bin> <amount> - Generate cards with BIN and amount\n"
+        "/gen <first|second|third|fourth> <amount> - Generate cards with specified format and amount\n"
         "/gg <amount> - Generate cards from random bins\n"
         "/gv <amount> - Generate cards from Visa bins\n"
         "/gm <amount> - Generate cards from Mastercard bins\n"
@@ -100,30 +100,6 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/cmds - Show this help message"
     )
     await update.message.reply_text(f"Here are the commands you can use:\n{commands}")
-
-import random
-import re
-
-def parse_input(input_string):
-    # Split the input into parts
-    parts = input_string.split('|')
-    if len(parts) < 3:
-        raise ValueError("Input must be in the format: first|second|third|fourth")
-    first, second, third, fourth = parts
-    return first, second, third, fourth
-
-def generate_credit_card_number(prefix, length):
-    card_number = [int(d) for d in str(prefix)]
-    while len(card_number) < (length - 1):
-        card_number.append(random.randint(0, 9))
-    
-    partial_number = ''.join(map(str, card_number))
-    for check_digit in range(10):
-        if is_luhn_valid(int(partial_number + str(check_digit))):
-            card_number.append(check_digit)
-            break
-
-    return ''.join(map(str, card_number))
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -205,7 +181,7 @@ async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_document(document=file, filename="gen.txt")
         await update.message.reply_text(f"BIN Information:\n{bin_details}")
 
-async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE, prefixes) -> None:
+async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
 
     if not is_registered(user_id):
@@ -223,16 +199,21 @@ async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAUL
         return
 
     bin_data = load_bin_data(BIN_FILE_PATH)
-    bin_list = [bin_number for bin_number in bin_data if any(bin_number.startswith(prefix) for prefix in prefixes)]
+    all_bins = list(bin_data.keys())
     
-    if not bin_list:
-        await update.message.reply_text("No BINs found for the selected brands.")
+    if not all_bins:
+        await update.message.reply_text("No BINs found in the data.")
         return
 
-    bin_number = random.choice(bin_list)
+    num_bins = min(len(all_bins), 5)
+    selected_bins = random.sample(all_bins, num_bins)
+    
+    card_numbers = []
     card_length = 16
-    card_numbers = generate_test_cards(bin_number, card_length, count)
-
+    
+    for bin_number in selected_bins:
+        card_numbers.extend(generate_test_cards(bin_number, card_length, count // num_bins))
+    
     if count < 20:
         for card in card_numbers:
             await update.message.reply_text(card)
@@ -240,26 +221,12 @@ async def generate_from_random_bins(update: Update, context: ContextTypes.DEFAUL
         with open("gen.txt", "w") as file:
             for card in card_numbers:
                 file.write(card + "\n")
-
-        bin_info = bin_data.get(bin_number, {})
-        if not bin_info:
-            await update.message.reply_text(f"No information found for BIN {bin_number}")
-            return
         
-        bin_details = (
-            f"BIN: {bin_info['BIN']}\n"
-            f"Brand: {bin_info['Brand']}\n"
-            f"Type: {bin_info['Type']}\n"
-            f"Category: {bin_info['Category']}\n"
-            f"Issuer: {bin_info['Issuer']}\n"
-            f"Country: {bin_info['CountryName']}"
-        )
-
         with open("gen.txt", "rb") as file:
             await update.message.reply_document(document=file, filename="gen.txt")
-        await update.message.reply_text(f"BIN Information:\n{bin_details}")
+        await update.message.reply_text(f"Generated {count} cards from multiple random BINs.")
 
-async def generate_from_specific_bins(update: Update, context: ContextTypes.DEFAULT_TYPE, bin_type) -> None:
+async def generate_from_visa_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
 
     if not is_registered(user_id):
@@ -267,7 +234,7 @@ async def generate_from_specific_bins(update: Update, context: ContextTypes.DEFA
         return
 
     if len(context.args) != 1:
-        await update.message.reply_text(f"Usage: /{bin_type} <amount>")
+        await update.message.reply_text("Usage: /gv <amount>")
         return
 
     try:
@@ -277,16 +244,21 @@ async def generate_from_specific_bins(update: Update, context: ContextTypes.DEFA
         return
 
     bin_data = load_bin_data(BIN_FILE_PATH)
-    bin_list = [bin_number for bin_number, details in bin_data.items() if details['Brand'].upper() == bin_type.upper()]
+    visa_bins = [bin_number for bin_number in bin_data if bin_number.startswith('4')]
     
-    if not bin_list:
-        await update.message.reply_text(f"No BINs found for the brand {bin_type}.")
+    if not visa_bins:
+        await update.message.reply_text("No Visa BINs found in the data.")
         return
 
-    bin_number = random.choice(bin_list)
+    num_bins = min(len(visa_bins), 5)
+    selected_bins = random.sample(visa_bins, num_bins)
+    
+    card_numbers = []
     card_length = 16
-    card_numbers = generate_test_cards(bin_number, card_length, count)
-
+    
+    for bin_number in selected_bins:
+        card_numbers.extend(generate_test_cards(bin_number, card_length, count // num_bins))
+    
     if count < 20:
         for card in card_numbers:
             await update.message.reply_text(card)
@@ -294,24 +266,100 @@ async def generate_from_specific_bins(update: Update, context: ContextTypes.DEFA
         with open("gen.txt", "w") as file:
             for card in card_numbers:
                 file.write(card + "\n")
-
-        bin_info = bin_data.get(bin_number, {})
-        if not bin_info:
-            await update.message.reply_text(f"No information found for BIN {bin_number}")
-            return
         
-        bin_details = (
-            f"BIN: {bin_info['BIN']}\n"
-            f"Brand: {bin_info['Brand']}\n"
-            f"Type: {bin_info['Type']}\n"
-            f"Category: {bin_info['Category']}\n"
-            f"Issuer: {bin_info['Issuer']}\n"
-            f"Country: {bin_info['CountryName']}"
-        )
-
         with open("gen.txt", "rb") as file:
             await update.message.reply_document(document=file, filename="gen.txt")
-        await update.message.reply_text(f"BIN Information:\n{bin_details}")
+        await update.message.reply_text(f"Generated {count} Visa cards.")
+
+async def generate_from_mastercard_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+
+    if not is_registered(user_id):
+        await update.message.reply_text("You need to register first using /register.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /gm <amount>")
+        return
+
+    try:
+        count = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Amount should be a number.")
+        return
+
+    bin_data = load_bin_data(BIN_FILE_PATH)
+    mastercard_bins = [bin_number for bin_number in bin_data if bin_number.startswith('5')]
+    
+    if not mastercard_bins:
+        await update.message.reply_text("No Mastercard BINs found in the data.")
+        return
+
+    num_bins = min(len(mastercard_bins), 5)
+    selected_bins = random.sample(mastercard_bins, num_bins)
+    
+    card_numbers = []
+    card_length = 16
+    
+    for bin_number in selected_bins:
+        card_numbers.extend(generate_test_cards(bin_number, card_length, count // num_bins))
+    
+    if count < 20:
+        for card in card_numbers:
+            await update.message.reply_text(card)
+    else:
+        with open("gen.txt", "w") as file:
+            for card in card_numbers:
+                file.write(card + "\n")
+        
+        with open("gen.txt", "rb") as file:
+            await update.message.reply_document(document=file, filename="gen.txt")
+        await update.message.reply_text(f"Generated {count} Mastercard cards.")
+
+async def generate_from_amex_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+
+    if not is_registered(user_id):
+        await update.message.reply_text("You need to register first using /register.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /ga <amount>")
+        return
+
+    try:
+        count = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Amount should be a number.")
+        return
+
+    bin_data = load_bin_data(BIN_FILE_PATH)
+    amex_bins = [bin_number for bin_number in bin_data if bin_number.startswith('3')]
+    
+    if not amex_bins:
+        await update.message.reply_text("No American Express BINs found in the data.")
+        return
+
+    num_bins = min(len(amex_bins), 5)
+    selected_bins = random.sample(amex_bins, num_bins)
+    
+    card_numbers = []
+    card_length = 15
+    
+    for bin_number in selected_bins:
+        card_numbers.extend(generate_test_cards(bin_number, card_length, count // num_bins))
+    
+    if count < 20:
+        for card in card_numbers:
+            await update.message.reply_text(card)
+    else:
+        with open("gen.txt", "w") as file:
+            for card in card_numbers:
+                file.write(card + "\n")
+        
+        with open("gen.txt", "rb") as file:
+            await update.message.reply_document(document=file, filename="gen.txt")
+        await update.message.reply_text(f"Generated {count} American Express cards.")
 
 async def generate_from_country_bins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -332,16 +380,21 @@ async def generate_from_country_bins(update: Update, context: ContextTypes.DEFAU
         return
 
     bin_data = load_bin_data(BIN_FILE_PATH)
-    bin_list = [bin_number for bin_number, details in bin_data.items() if details['isoCode2'].upper() == country_code]
-
-    if not bin_list:
-        await update.message.reply_text(f"No BINs found for the country code {country_code}.")
+    country_bins = [bin_number for bin_number, data in bin_data.items() if data['isoCode2'] == country_code]
+    
+    if not country_bins:
+        await update.message.reply_text(f"No BINs found for country code {country_code}.")
         return
 
-    bin_number = random.choice(bin_list)
+    num_bins = min(len(country_bins), 5)
+    selected_bins = random.sample(country_bins, num_bins)
+    
+    card_numbers = []
     card_length = 16
-    card_numbers = generate_test_cards(bin_number, card_length, count)
-
+    
+    for bin_number in selected_bins:
+        card_numbers.extend(generate_test_cards(bin_number, card_length, count // num_bins))
+    
     if count < 20:
         for card in card_numbers:
             await update.message.reply_text(card)
@@ -349,37 +402,39 @@ async def generate_from_country_bins(update: Update, context: ContextTypes.DEFAU
         with open("gen.txt", "w") as file:
             for card in card_numbers:
                 file.write(card + "\n")
-
-        bin_info = bin_data.get(bin_number, {})
-        if not bin_info:
-            await update.message.reply_text(f"No information found for BIN {bin_number}")
-            return
         
-        bin_details = (
-            f"BIN: {bin_info['BIN']}\n"
-            f"Brand: {bin_info['Brand']}\n"
-            f"Type: {bin_info['Type']}\n"
-            f"Category: {bin_info['Category']}\n"
-            f"Issuer: {bin_info['Issuer']}\n"
-            f"Country: {bin_info['CountryName']}"
-        )
-
         with open("gen.txt", "rb") as file:
             await update.message.reply_document(document=file, filename="gen.txt")
-        await update.message.reply_text(f"BIN Information:\n{bin_details}")
+        await update.message.reply_text(f"Generated {count} cards from bins of country code {country_code}.")
 
-# Command handlers
-async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-
-    if not is_registered(user_id):
-        await update.message.reply_text("You need to register first using /register.")
+async def binlookup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /bn <bin>")
         return
 
+    bin_number = context.args[0]
+    bin_data = load_bin_data(BIN_FILE_PATH)
+
+    if bin_number not in bin_data:
+        await update.message.reply_text(f"No information found for BIN {bin_number}.")
+        return
+
+    bin_info = bin_data[bin_number]
+    bin_details = (
+        f"BIN: {bin_info['BIN']}\n"
+        f"Brand: {bin_info['Brand']}\n"
+        f"Type: {bin_info['Type']}\n"
+        f"Category: {bin_info['Category']}\n"
+        f"Issuer: {bin_info['Issuer']}\n"
+        f"Country: {bin_info['CountryName']}"
+    )
+    await update.message.reply_text(f"BIN Information:\n{bin_details}")
+
+async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     commands = (
         "/start - Start the bot\n"
         "/register - Register to use the bot\n"
-        "/gen <bin> <amount> - Generate cards with BIN and amount\n"
+        "/gen <first|second|third|fourth> <amount> - Generate cards with specified format and amount\n"
         "/gg <amount> - Generate cards from random bins\n"
         "/gv <amount> - Generate cards from Visa bins\n"
         "/gm <amount> - Generate cards from Mastercard bins\n"
@@ -390,21 +445,20 @@ async def cmds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     await update.message.reply_text(f"Here are the commands you can use:\n{commands}")
 
-# Application setup
-def main():
+def main() -> None:
     application = Application.builder().token("7528445359:AAEpk_rd_cgRrFRWkOobdwVFYUFrxZsiKyM").build()
-
+    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("register", register))
     application.add_handler(CommandHandler("gen", generate))
     application.add_handler(CommandHandler("gg", generate_from_random_bins))
-    application.add_handler(CommandHandler("gv", lambda u, c: generate_from_specific_bins(u, c, 'VISA')))
-    application.add_handler(CommandHandler("gm", lambda u, c: generate_from_specific_bins(u, c, 'MASTERCARD')))
-    application.add_handler(CommandHandler("ga", lambda u, c: generate_from_specific_bins(u, c, 'AMEX')))
+    application.add_handler(CommandHandler("gv", generate_from_visa_bins))
+    application.add_handler(CommandHandler("gm", generate_from_mastercard_bins))
+    application.add_handler(CommandHandler("ga", generate_from_amex_bins))
     application.add_handler(CommandHandler("gc", generate_from_country_bins))
-    application.add_handler(CommandHandler("bn", lambda u, c: lookup_bin(u, c)))
+    application.add_handler(CommandHandler("bn", binlookup))
     application.add_handler(CommandHandler("cmds", cmds))
-
+    
     application.run_polling()
 
 if __name__ == "__main__":
