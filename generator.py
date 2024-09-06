@@ -81,29 +81,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if query:
-        data = query.data
-        if data == 'register':
-            await register(query.message, context)
+        await register(query.message, context)
 
-async def register(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def register(message, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = None
-    if hasattr(update, 'effective_user') and update.effective_user:
-        user_id = update.effective_user.id
-    elif hasattr(update, 'from_user') and update.from_user:
-        user_id = update.from_user.id
+    if isinstance(message, Update):
+        if message.effective_user:
+            user_id = message.effective_user.id
+    elif isinstance(message, CallbackQuery):
+        if message.from_user:
+            user_id = message.from_user.id
     
     if user_id is None:
-        await update.message.reply_text("Could not extract user ID. Please try again.")
+        await message.reply_text("Could not extract user ID. Please try again.")
         return
     
     if is_registered(user_id):
-        await update.message.reply_text("You are already registered.")
+        await message.reply_text("You are already registered.")
         return
 
     with open(USERS_FILE_PATH, "a") as file:
         file.write(f"{user_id}\n")
-    await update.message.reply_text("You have been registered successfully!")
-    await list_commands(update, context)
+    await message.reply_text("You have been registered successfully!")
+    await list_commands(message, context)
 
 async def generate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
